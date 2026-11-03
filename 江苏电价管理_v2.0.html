@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>固德威新能源资产管理 - 江苏电价管理 v1.0</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:#f0f2f5; color:#333; font-size:14px; }
+
+.header { background:#fff; height:56px; display:flex; align-items:center; padding:0 20px; box-shadow:0 1px 4px rgba(0,0,0,0.1); position:fixed; top:0; left:0; right:0; z-index:1000; }
+.logo { color:#e60012; font-size:20px; font-weight:bold; margin-right:40px; }
+.breadcrumb { display:flex; align-items:center; gap:8px; font-size:13px; color:#666; }
+.breadcrumb span { color:#999; }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:20px; }
+.header-btn { padding:6px 16px; border:1px solid #d9d9d9; background:#fff; border-radius:4px; cursor:pointer; font-size:13px; }
+.header-btn.primary { background:#e60012; color:#fff; border-color:#e60012; }
+.user-avatar { width:32px; height:32px; border-radius:50%; background:#e60012; color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; }
+
+.sidebar { position:fixed; left:0; top:56px; bottom:0; width:200px; background:#001529; overflow-y:auto; z-index:999; }
+.menu-item { padding:12px 20px; color:rgba(255,255,255,0.65); cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; }
+.menu-item:hover { color:#fff; background:rgba(255,255,255,0.1); }
+.menu-item.active { background:#e60012; color:#fff; }
+.menu-group-title { padding:12px 20px 8px; color:rgba(255,255,255,0.45); font-size:12px; }
+
+.main-content { margin-left:200px; margin-top:56px; padding:20px; }
+.page-header { background:#fff; padding:20px 24px; border-radius:4px; margin-bottom:16px; }
+.page-title { font-size:20px; font-weight:500; margin-bottom:8px; }
+.page-subtitle { font-size:13px; color:#666; margin-top:4px; line-height:1.6; }
+.price-entry-btn { padding:8px 20px; background:#fff; border:1px solid #e60012; color:#e60012; border-radius:4px; cursor:pointer; font-size:14px; }
+
+.lock-banner { padding:10px 16px; background:#e6f7ff; border:1px solid #91d5ff; border-radius:4px; color:#0958d9; font-size:12px; line-height:1.7; margin-bottom:16px; }
+
+.revenue-cards { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; }
+.revenue-card { background:#fff; padding:16px; border-radius:4px; }
+.revenue-card-title { font-size:13px; color:#666; margin-bottom:10px; }
+.revenue-card-value { font-size:26px; font-weight:500; color:#333; }
+.revenue-card-unit { font-size:12px; color:#999; margin-left:4px; }
+.revenue-card.highlight { border:1px solid #91d5ff; background:#f0f9ff; }
+
+.chart-container { background:#fff; padding:20px; border-radius:4px; margin-bottom:20px; }
+.chart-title { font-size:16px; font-weight:500; margin-bottom:16px; }
+
+.drawer-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:1001; display:none; }
+.drawer-overlay.show { display:block; }
+.drawer { position:fixed; top:0; right:-1400px; width:1400px; height:100vh; background:#fff; z-index:1002; transition:right 0.3s ease; overflow-y:auto; display:flex; flex-direction:column; }
+.drawer.show { right:0; }
+.drawer-header { padding:16px 24px; border-bottom:1px solid #e8e8e8; display:flex; align-items:center; gap:12px; position:sticky; top:0; background:#fff; z-index:10; flex-shrink:0; }
+.drawer-title { font-size:16px; font-weight:500; flex:1; }
+.drawer-close { width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; font-size:18px; }
+.drawer-body { padding:24px; flex:1; }
+.drawer-footer { padding:16px 24px; border-top:1px solid #e8e8e8; display:flex; justify-content:flex-end; gap:12px; position:sticky; bottom:0; background:#fff; flex-shrink:0; }
+
+.btn { padding:8px 20px; border-radius:4px; cursor:pointer; font-size:14px; border:1px solid #d9d9d9; background:#fff; }
+.btn-primary { background:#e60012; color:#fff; border-color:#e60012; }
+.btn-sm { padding:4px 12px; font-size:12px; }
+
+.info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px 24px; margin-bottom:16px; }
+.info-item { display:flex; flex-direction:column; gap:4px; }
+.info-label { font-size:12px; color:#999; }
+.info-value { font-size:13px; color:#333; padding:6px 8px; background:#fafafa; border-radius:2px; border:1px solid #f0f0f0; }
+
+.form-input.readonly { background:#f5f5f5; color:#666; }
+.form-input { width:100%; padding:8px 12px; border:1px solid #d9d9d9; border-radius:4px; font-size:14px; }
+.form-input:focus { outline:none; border-color:#e60012; }
+
+.selector-bar { display:flex; align-items:center; gap:16px; padding:12px 16px; background:#fafafa; border-radius:4px; margin-bottom:16px; flex-wrap:wrap; }
+.date-input { padding:6px 12px; border:1px solid #d9d9d9; border-radius:4px; font-size:13px; }
+.radio-group { display:flex; gap:16px; }
+.radio-item { display:flex; align-items:center; gap:4px; cursor:pointer; }
+
+.price-table-wrap { overflow-x:auto; margin-bottom:16px; }
+.price-table { width:100%; border-collapse:collapse; font-size:13px; }
+.price-table th, .price-table td { border:1px solid #e8e8e8; padding:8px 10px; text-align:center; }
+.price-table th { background:#fafafa; font-weight:500; }
+.price-table td.green { background:#f6ffed; }
+.price-table td.highlight { color:#e60012; font-weight:500; }
+.price-table input.form-input { padding:4px 6px; font-size:12px; }
+
+.tag { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:500; }
+.tag-sharp { background:#f9f0ff; color:#531dab; }
+.tag-peak { background:#fff1f0; color:#d4380d; }
+.tag-flat { background:#f0f0f0; color:#595959; }
+.tag-valley { background:#e6f7ff; color:#0050b3; }
+.tag-deep { background:#f6ffed; color:#389e0d; }
+
+.source-tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; background:#e6f7ff; color:#1890ff; border:1px solid #91d5ff; }
+
+.form-section { margin-bottom:24px; }
+.form-section-title { font-size:14px; font-weight:500; color:#333; margin-bottom:16px; padding-left:8px; border-left:3px solid #e60012; }
+
+.form-row { display:flex; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+.form-label { width:150px; text-align:right; padding-right:12px; color:#333; font-size:14px; flex-shrink:0; }
+.form-label.required::before { content:'*'; color:#f5222d; margin-right:4px; }
+.form-control { flex:1; max-width:320px; }
+.form-control.wide { max-width:100%; }
+.form-hint { font-size:12px; color:#999; margin-top:4px; margin-left:162px; }
+.form-text { font-size:14px; color:#666; margin-left:8px; }
+
+.radio-group-inline { display:flex; gap:20px; flex-wrap:wrap; }
+.radio-item-inline { display:flex; align-items:center; gap:6px; cursor:pointer; }
+.radio-item-inline input { width:16px; height:16px; }
+
+.leg-box { border:1px solid #e8e8e8; border-radius:4px; padding:16px; margin-bottom:12px; background:#fff; }
+.leg-box.active { border-color:#e60012; }
+.leg-head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.leg-title { font-size:14px; font-weight:500; }
+
+.panel { padding:16px; background:#fafafa; border-radius:4px; margin-top:12px; display:none; }
+.panel.show { display:block; }
+
+.attach-box { border:1px dashed #d9d9d9; border-radius:4px; padding:24px; text-align:center; color:#999; cursor:pointer; background:#fafafa; }
+.attach-box:hover { border-color:#e60012; color:#e60012; }
+
+.green-contract-info { padding:12px 16px; background:#f6ffed; border:1px solid #b7eb8f; border-radius:4px; margin-top:12px; font-size:13px; }
+.green-contract-info .label { color:#666; }
+.green-contract-info .value { color:#52c41a; font-weight:500; }
+
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.45); z-index:2001; display:none; }
+.modal-overlay.show { display:block; }
+.modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:560px; background:#fff; border-radius:8px; z-index:2002; display:none; box-shadow:0 6px 16px rgba(0,0,0,0.12); }
+.modal.show { display:block; }
+.modal-header { padding:16px 24px; border-bottom:1px solid #e8e8e8; display:flex; align-items:center; justify-content:space-between; }
+.modal-title { font-size:16px; font-weight:500; }
+.modal-close { cursor:pointer; font-size:18px; color:#999; }
+.modal-body { padding:24px; max-height:60vh; overflow-y:auto; }
+.modal-footer { padding:16px 24px; border-top:1px solid #e8e8e8; display:flex; justify-content:flex-end; gap:12px; }
+.warn-item { padding:10px 12px; background:#fff7e6; border:1px solid #ffd591; border-radius:4px; margin-bottom:8px; font-size:13px; color:#ad6800; }
+.modal-radio-item { padding:12px; border:1px solid #e8e8e8; border-radius:4px; margin-bottom:8px; cursor:pointer; display:flex; align-items:flex-start; gap:8px; }
+.modal-radio-item.active { border-color:#e60012; background:#fff1f0; }
+.modal-radio-item input { margin-top:4px; }
+.modal-radio-text { flex:1; }
+.modal-radio-title { font-size:14px; font-weight:500; margin-bottom:4px; }
+.modal-radio-desc { font-size:12px; color:#666; }
+.quick-btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.quick-btn { padding:4px 12px; border:1px solid #d9d9d9; background:#fff; border-radius:4px; cursor:pointer; font-size:12px; }
+.quick-btn.active { background:#e60012; color:#fff; border-color:#e60012; }
+
+.toast { position:fixed; top:80px; right:24px; background:#fff; border-radius:4px; padding:12px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:3000; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
+.toast.show { opacity:1; }
+.toast.success { border-left:4px solid #52c41a; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="logo">GOODWE</div>
+    <div class="breadcrumb">
+        <span>新能源资产管理</span><span>/</span>
+        <span>新能源收益</span><span>/</span>
+        <span style="color:#333;">江苏电价管理 v1.0</span>
+    </div>
+    <div class="header-right">
+        <button class="header-btn">导出</button>
+        <button class="header-btn primary" onclick="showToast('草稿已保存','success')">保存</button>
+        <div class="user-avatar">沈</div>
+    </div>
+</div>
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="menu-group-title">资产管理</div>
+    <div class="menu-item">电站列表</div>
+    <div class="menu-item active">新能源收益</div>
+    <div class="menu-group-title">电价管理</div>
+    <div class="menu-item">到户电价</div>
+    <div class="menu-item">套餐配置</div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+    <div class="page-header">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+                <div class="page-title">新能源收益 · 江苏 v1.0
+                    <span style="font-size:12px;color:#fff;background:#1677ff;padding:2px 8px;border-radius:10px;">不分时月单值 / 分时月×24</span>
+                    <span style="font-size:12px;color:#fff;background:#e60012;padding:2px 8px;border-radius:10px;margin-left:4px;">封顶仅实际</span>
+                </div>
+                <div class="page-subtitle">零售（不分时月单值 / 分时月×24）→ 购电=P零售（月单值1:1）→ 到户五档（尖峰/峰/平/谷/深谷）· 绿电独立结算三列展示（综合/电能量/环境）· 预测不封顶 / 实际封顶</div>
+            </div>
+            <button class="price-entry-btn" onclick="openDrawer('price')">电价 &gt;</button>
+        </div>
+    </div>
+
+    <div class="lock-banner">
+        <strong>v1.0 口径条</strong>：P购电=P零售（月单值1:1）。预测：不封顶（P购电均价未披露）。实际：P零售真实=min(P组合,(1+k浮动)×P购电均价)。到户= P购电×档系数 + 上网线损+输配+系统运行+基金+其他（档系数：尖峰(1+上浮)(1+20%) / 峰(1+上浮) / 平1 / 谷(1-上浮) / 深谷(1-上浮)(1-20%)，上浮比例后台配置）。分时套餐到户按24时段逐时映射五档。所有电价不可手动录入，全链路自动计算。
+    </div>
+
+    <div class="revenue-cards">
+        <div class="revenue-card">
+            <div class="revenue-card-title">本月预测零售价（不封顶）</div>
+            <div class="revenue-card-value">0.3510<span class="revenue-card-unit">元/kWh</span></div>
+            <div style="font-size:12px;color:#999;margin-top:8px;">套餐组合价 · 月单值</div>
+        </div>
+        <div class="revenue-card">
+            <div class="revenue-card-title">本月实际零售价（封顶后）</div>
+            <div class="revenue-card-value">0.3465<span class="revenue-card-unit">元/kWh</span></div>
+            <div style="font-size:12px;color:#999;margin-top:8px;">min(0.351, 封顶0.3465)</div>
+        </div>
+        <div class="revenue-card highlight">
+            <div class="revenue-card-title">综合购电价（1:1）</div>
+            <div class="revenue-card-value">0.3465<span class="revenue-card-unit">元/kWh</span></div>
+            <div style="font-size:12px;color:#999;margin-top:8px;">月单值 · =P零售实际</div>
+        </div>
+        <div class="revenue-card">
+            <div class="revenue-card-title">本月预测到户均价（平档）</div>
+            <div class="revenue-card-value">0.5653<span class="revenue-card-unit">元/kWh</span></div>
+            <div style="font-size:12px;color:#999;margin-top:8px;">P购电+五附加项</div>
+        </div>
+        <div class="revenue-card">
+            <div class="revenue-card-title">绿电综合价（独立）</div>
+            <div class="revenue-card-value">0.4000<span class="revenue-card-unit">元/kWh</span></div>
+            <div style="font-size:12px;color:#999;margin-top:8px;">电能量0.380 + 环境0.020</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">24 时段电价走势 · 2026-06（分时套餐：修正后零售/到户逐时映射）</div>
+        <svg viewBox="0 0 960 280" style="width:100%;height:280px;">
+            <line x1="40" y1="240" x2="940" y2="240" stroke="#e8e8e8"/>
+            <line x1="40" y1="40" x2="40" y2="240" stroke="#e8e8e8"/>
+            <text x="8" y="44" font-size="10" fill="#999">1.0</text>
+            <text x="8" y="140" font-size="10" fill="#999">0.5</text>
+            <text x="8" y="244" font-size="10" fill="#999">0.0</text>
+            <!-- 零售修正后(谷0.142 平0.355 峰0.568) -->
+            <polyline points="40,212 80,212 120,212 160,212 200,212 240,169 280,169 320,169 360,126 400,126 440,126 480,169 520,169 560,169 600,169 640,126 680,126 720,126 760,126 800,212 840,212 880,212 920,212" fill="none" stroke="#1890ff" stroke-width="2"/>
+            <!-- 到户(零售×档系数+附加) -->
+            <polyline points="40,183 80,183 120,183 160,183 200,183 240,135 280,135 320,135 360,60 400,60 440,60 480,135 520,135 560,135 600,135 640,60 680,60 720,60 760,60 800,183 840,183 880,183 920,183" fill="none" stroke="#722ed1" stroke-width="2"/>
+            <line x1="40" y1="169" x2="940" y2="169" stroke="#52c41a" stroke-width="1" stroke-dasharray="4,4"/>
+            <text x="945" y="172" font-size="10" fill="#52c41a">平段加权0.355</text>
+            <text x="40" y="260" font-size="10" fill="#999">0:00</text>
+            <text x="440" y="260" font-size="10" fill="#999">12:00</text>
+            <text x="920" y="260" font-size="10" fill="#999">24:00</text>
+            <g transform="translate(740,40)">
+                <rect width="14" height="3" y="0" fill="#1890ff"/><text x="20" y="5" font-size="10" fill="#666">零售(修正后)</text>
+                <rect width="14" height="3" y="16" fill="#722ed1"/><text x="20" y="21" font-size="10" fill="#666">到户(逐时映射)</text>
+            </g>
+        </svg>
+    </div>
+</div>
+
+<!-- Drawer Overlay -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
+<!-- ========== 电价查询抽屉 ========== -->
+<div class="drawer" id="priceDrawer">
+    <div class="drawer-header">
+        <div class="drawer-title">电价管理 · 江苏</div>
+        <button class="btn btn-sm btn-primary" onclick="closeDrawer('price'); openDrawer('contract')">+ 新增合同</button>
+        <button class="btn btn-sm">当前套餐</button>
+        <button class="btn btn-sm">历史套餐</button>
+        <div class="drawer-close" onclick="closeDrawer('price')">✕</div>
+    </div>
+    <div class="drawer-body">
+        <!-- 基础信息 -->
+        <div class="form-section">
+            <div class="form-section-title">基础信息（从中台获取）</div>
+            <div class="info-grid">
+                <div class="info-item"><div class="info-label">用电类型</div><div class="info-value">一般工商业及其他</div></div>
+                <div class="info-item"><div class="info-label">计价类型</div><div class="info-value">两部制</div></div>
+                <div class="info-item"><div class="info-label">电压等级</div><div class="info-value">1-10 千伏</div></div>
+                <div class="info-item"><div class="info-label">容量电价</div><div class="info-value">30 元/kW·月</div></div>
+                <div class="info-item"><div class="info-label">需量电价</div><div class="info-value">48 元/kW·月</div></div>
+                <div class="info-item"><div class="info-label">其他（可配置）</div><div class="info-value">0 元/kWh</div></div>
+                <div class="info-item"><div class="info-label">上网环节线损费用</div><div class="info-value">0.0126 元/kWh</div></div>
+                <div class="info-item"><div class="info-label">电度输配电价</div><div class="info-value">0.1428 元/kWh</div></div>
+                <div class="info-item"><div class="info-label">系统运行费用</div><div class="info-value">0.0300 元/kWh</div></div>
+                <div class="info-item"><div class="info-label">政府性基金及附加</div><div class="info-value">0.02887 元/kWh</div></div>
+                <div class="info-item"><div class="info-label">峰谷上浮比例（后台配置）</div><div class="info-value">60%</div></div>
+                <div class="info-item"><div class="info-label">备注</div><div class="info-value" style="background:#fff;border:1px solid #d9d9d9;"><input placeholder="请输入" style="border:none;outline:none;width:100%;"></div></div>
+            </div>
+        </div>
+
+        <div class="selector-bar">
+            <label>月份：</label>
+            <input type="month" class="date-input" value="2026-06">
+            <div class="radio-group">
+                <label class="radio-item"><input type="radio" name="type" checked onchange="switchTable('predict')"> 预测值（不封顶）</label>
+                <label class="radio-item"><input type="radio" name="type" onchange="switchTable('actual')"> 实际值（封顶min，不可手录）</label>
+            </div>
+        </div>
+
+        <!-- 不分时视图：24时段+峰谷分时 -->
+        <div>
+            <div class="price-table-wrap" id="predictTable">
+                <table class="price-table">
+                    <thead><tr><th>时段</th><th>峰谷分时</th><th>零售 P零售</th><th>购电 P购电</th><th>绿电综合</th><th>绿电电能量</th><th>绿电环境</th><th>到户 P到户</th><th>来源</th></tr></thead>
+                    <tbody>
+                        <tr><td>00:00-01:00</td><td><span class="tag tag-deep">深谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3266</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>01:00-02:00</td><td><span class="tag tag-deep">深谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3266</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>02:00-03:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>03:00-04:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>04:00-05:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>05:00-06:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>06:00-07:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>07:00-08:00</td><td><span class="tag tag-flat">平</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5653</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>08:00-09:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>09:00-10:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>10:00-11:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8890</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>11:00-12:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8890</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>12:00-13:00</td><td><span class="tag tag-flat">平</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5653</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>13:00-14:00</td><td><span class="tag tag-flat">平</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5653</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>14:00-15:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>15:00-16:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>16:00-17:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>17:00-18:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>18:00-19:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8890</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>19:00-20:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8890</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>20:00-21:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7759</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>21:00-22:00</td><td><span class="tag tag-flat">平</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5653</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>22:00-23:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                        <tr><td>23:00-24:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3510</td><td>0.3510</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3547</td><td><span class="source-tag">预测</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="price-table-wrap" id="actualTable" style="display:none;">
+                <table class="price-table">
+                    <thead><tr><th>时段</th><th>峰谷分时</th><th>零售 P零售</th><th>购电 P购电</th><th>封顶价</th><th>绿电综合</th><th>绿电电能量</th><th>绿电环境</th><th>到户 P到户</th><th>来源</th></tr></thead>
+                    <tbody>
+                        <tr><td>00:00-01:00</td><td><span class="tag tag-deep">深谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3252</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>01:00-02:00</td><td><span class="tag tag-deep">深谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3252</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>02:00-03:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>03:00-04:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>04:00-05:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>05:00-06:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>06:00-07:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>07:00-08:00</td><td><span class="tag tag-flat">平</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5608</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>08:00-09:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>09:00-10:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>10:00-11:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8818</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>11:00-12:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8818</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>12:00-13:00</td><td><span class="tag tag-flat">平</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5608</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>13:00-14:00</td><td><span class="tag tag-flat">平</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5608</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>14:00-15:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>15:00-16:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>16:00-17:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>17:00-18:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>18:00-19:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8818</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>19:00-20:00</td><td><span class="tag tag-sharp">尖峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.8818</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>20:00-21:00</td><td><span class="tag tag-peak">峰</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.7687</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>21:00-22:00</td><td><span class="tag tag-flat">平</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.5608</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>22:00-23:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                        <tr><td>23:00-24:00</td><td><span class="tag tag-valley">谷</span></td><td>0.3465</td><td>0.3465</td><td>0.3465</td><td class="green">0.4000</td><td class="green">0.3800</td><td class="green">0.0200</td><td class="highlight">0.3529</td><td><span class="source-tag">实际</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        <div style="font-size:12px;color:#999;margin-top:10px;">
+            单位：元/kWh · 附加项合计0.2143=线损0.0126+输配0.1428+系统运行0.03+基金0.02887+其他0 · 绿电不进购电/到户，独立三列展示 · 环境价=批发侧匹配合同透传，零售不可配 · 所有电价不可手动录入
+        </div>
+    </div>
+    <div class="drawer-footer">
+        <button class="btn" onclick="closeDrawer('price')">关闭</button>
+    </div>
+</div>
+
+<!-- ========== 新增合同抽屉 ========== -->
+<div class="drawer" id="contractDrawer">
+    <div class="drawer-header">
+        <div class="drawer-title">新增合同 · 江苏 2026</div>
+        <div class="drawer-close" onclick="closeDrawer('contract')">✕</div>
+    </div>
+    <div class="drawer-body">
+        <!-- 基础信息 -->
+        <div class="form-section">
+            <div class="form-section-title">基础信息</div>
+            <div class="form-row">
+                <div class="form-label required">场站名称</div>
+                <div class="form-control"><input class="form-input readonly" value="固德威苏州工业园区一期" readonly></div>
+                <div class="form-label required">合同名称</div>
+                <div class="form-control"><input class="form-input" placeholder="请输入合同名称"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-label required">合同起止</div>
+                <div class="form-control" style="display:flex;gap:8px;align-items:center;">
+                    <input type="month" class="form-input" value="2026-01">
+                    <span>→</span>
+                    <input type="month" class="form-input" value="2026-12">
+                </div>
+            </div>
+        </div>
+
+        <!-- 电能量套餐 -->
+        <div class="form-section">
+            <div class="form-section-title">电能量套餐（二选一）</div>
+            <div class="form-row">
+                <div class="form-label">常规电量购电需求</div>
+                <div class="form-control" style="display:flex;gap:8px;align-items:center;">
+                    <input class="form-input" placeholder="请输入">
+                    <span class="form-text">MWh</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-label required">套餐类型</div>
+                <div class="form-control wide">
+                    <div class="radio-group-inline">
+                        <label class="radio-item-inline"><input type="radio" name="pkgType" value="nontou" checked onchange="switchPkg('nontou')"> 非分时零售套餐</label>
+                        <label class="radio-item-inline"><input type="radio" name="pkgType" value="tou" onchange="switchPkg('tou')"> 分时零售套餐</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 不分时：固定必选+浮动/分成单选 -->
+            <div class="panel show" id="panel-nontou">
+                <div class="leg-box active" id="legFixedBox">
+                    <div class="leg-head">
+                        <div class="leg-title">固定价格（必选）</div>
+                    </div>
+                    <div id="legFixedBody">
+                        <div class="form-row"><div class="form-label required">电能量占比 k固定</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kFixed" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">政策限值：K固定≤50%</div>
+                        <div class="form-row"><div class="form-label required">固定价格 P固定</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数"><span class="form-text">元/MWh</span></div></div>
+                        <div class="form-hint">上下浮动≤±20%燃煤基准价</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-control wide">
+                        <div class="radio-group-inline">
+                            <label class="radio-item-inline"><input type="radio" name="secondLeg" value="float" checked onchange="switchSecond('float')"> 浮动价格</label>
+                            <label class="radio-item-inline"><input type="radio" name="secondLeg" value="share" onchange="switchSecond('share')"> 比例分成</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="leg-box active" id="legFloatBox">
+                    <div class="leg-head">
+                        <div class="leg-title">浮动价格（中长期+现货联动）</div>
+                    </div>
+                    <div id="legFloatBody">
+                        <div class="form-row"><div class="form-label required">电能量占比 k浮动</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kFloatLeg" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动中长期占比 k中长期</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动现货占比 k实时</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kSpot" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">现货实时联动电量比例 5%-15%</div>
+                        <div class="form-row"><div class="form-label required">浮动价格 ΔP</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="dP" placeholder="3位小数，≥0"><span class="form-text">元/MWh</span></div></div>
+                        <div class="form-hint">≤3%最近一次年度交易均价且≥0，超限预警+法人确认</div>
+                    </div>
+                </div>
+                <div class="leg-box" id="legShareBox" style="display:none;">
+                    <div class="leg-head">
+                        <div class="leg-title">比例分成（两市场分别分段）</div>
+                    </div>
+                    <div id="legShareBody">
+                        <div class="form-row"><div class="form-label required">电能量占比 k分成</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kShareLeg" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动中长期占比 k中长期</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动现货占比 k实时</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">分成腿内中长期+现货两占比相加=100%，两市场分别对参考价分段</div>
+                        <div class="form-row"><div class="form-label required">分成参考价 P参考</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数"><span class="form-text">元/MWh</span></div></div>
+                        <div class="form-hint">不宜超过当月代理购电价格 或 ≤年度交易均价+5%</div>
+                        <div class="form-row"><div class="form-label required">中长期·高于甲方占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kUp1" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">中长期·低于甲方占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kDown1" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">现货·高于甲方占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kUp2" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">现货·低于甲方占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kDown2" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">负价差分摊(高于甲方)≤50%；正价差分成(低于甲方)≥50%</div>
+                    </div>
+                </div>
+                <div class="form-hint" style="margin-left:0;">固定价格必选，浮动价格/比例分成二选一，不可同时；两项电量占比相加必须=100%。</div>
+            </div>
+
+            <!-- 分时：固定/浮动组合 -->
+            <div class="panel" id="panel-tou">
+                <div class="leg-box active">
+                    <div class="leg-head">
+                        <div class="leg-title">固定价格（必选）</div>
+                    </div>
+                    <div id="touFixedBody">
+                        <div class="selector-bar" style="margin:0 0 12px;">
+                            <span>选择月份:</span>
+                            <button class="quick-btn active" type="button" onclick="pickMonth(this)">1月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">2月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">3月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">4月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">5月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">6月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">7月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">8月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">9月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">10月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">11月</button><button class="quick-btn" type="button" onclick="pickMonth(this)">12月</button>
+                            <button class="btn btn-sm" type="button" onclick="showToast('已复制当前月份24点配置','success')">复制</button>
+                            <button class="btn btn-sm" type="button" onclick="showToast('已粘贴到当前月份','success')">粘贴</button>
+                        </div>
+                        <div class="price-table-wrap">
+                            <table class="price-table"><thead><tr><th>时段</th><th>1时</th><th>2时</th><th>3时</th><th>4时</th><th>5时</th><th>6时</th><th>7时</th><th>8时</th><th>9时</th><th>10时</th><th>11时</th><th>12时</th></tr></thead>
+                            <tbody><tr><td>电价元/MWh</td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td></tr></tbody></table>
+                            <table class="price-table" style="margin-top:-1px;"><tbody><tr><td>时段</td><td>13时</td><td>14时</td><td>15时</td><td>16时</td><td>17时</td><td>18时</td><td>19时</td><td>20时</td><td>21时</td><td>22时</td><td>23时</td><td>24时</td></tr><tr><td>电价元/MWh</td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input class="form-input"></td><td><input classform-input"></td></tr></tbody></table>
+                        </div>
+                        <div class="form-row"><div class="form-label required">电能量占比 k固定</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="touKFixed" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">K固定≤50%；与浮动占比相加=100%</div>
+                    </div>
+                </div>
+                <div class="leg-box active">
+                    <div class="leg-head">
+                        <div class="leg-title">浮动价格（分时段联动）</div>
+                    </div>
+                    <div id="touFloatBody">
+                        <div class="form-row"><div class="form-label required">电能量占比 k联动</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="touKLink" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动中长期占比 k中长期</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-row"><div class="form-label required">联动现货占比 k实时</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                        <div class="form-hint">现货实时联动电量比例 5%-15%</div>
+                        <div class="form-row"><div class="form-label required">浮动价格 ΔP</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数，≥0"><span class="form-text">元/MWh</span></div></div>
+                    </div>
+                </div>
+                <div class="form-hint" style="margin-left:0;">套餐三=固定+浮动，两项占比相加=100%，K固定≤50%。峰谷修正由系统自动计算：峰段=max(组合_t, 1.6×P平段加权)；谷段=min(组合_t, 0.4×P平段加权)；平段=P平段加权单值。峰平谷时段划分取自后台标准电价模板（426号文）。</div>
+            </div>
+        </div>
+
+        <!-- 全局封顶 -->
+        <div class="form-section">
+            <div class="form-section-title">全局封顶（必填）</div>
+            <div class="form-row">
+                <div class="form-label required">购电均价浮动比例 k浮动</div>
+                <div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" id="kFloatGlobal" type="number" min="0" max="100" placeholder="0-100 整数"><span class="form-text">%</span></div>
+            </div>
+            <div class="form-hint">结算价=min(组合价, (1+k浮动)×P购电均价)；P购电均价=所有售电公司当月批发结算加权均价（月后披露）；政策≤5%，超限预警+法定代表人再次确认；封顶仅作用于实际结算</div>
+        </div>
+
+        <!-- 绿电套餐 -->
+        <div class="form-section">
+            <div class="form-section-title">绿电套餐（三模式单选，独立结算，不进购电/到户）</div>
+            <div class="form-row">
+                <div class="form-label required">是否启用</div>
+                <div class="form-control">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" id="greenEnable" onchange="toggleGreen()" style="width:16px;height:16px;">
+                        <span style="font-size:14px;">启用</span>
+                    </label>
+                </div>
+            </div>
+            <div id="greenPanel" style="display:none;">
+                <div class="form-row">
+                    <div class="form-label">绿电购电需求</div>
+                    <div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="请输入"><span class="form-text">MWh</span></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-label required">绿电综合价上限</div>
+                    <div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数"><span class="form-text">元/MWh</span></div>
+                </div>
+                <div class="form-hint" style="margin-left:0;">三模式通用：P绿=min(模式价, 综合价上限)</div>
+                <div class="form-row">
+                    <div class="form-label required">模式（单选）</div>
+                    <div class="form-control wide">
+                        <div class="radio-group-inline">
+                            <label class="radio-item-inline"><input type="radio" name="greenMode" value="fixed" checked onchange="switchGreenMode('fixed')"> 固定价格</label>
+                            <label class="radio-item-inline"><input type="radio" name="greenMode" value="float" onchange="switchGreenMode('float')"> 浮动价格</label>
+                            <label class="radio-item-inline"><input type="radio" name="greenMode" value="share" onchange="switchGreenMode('share')"> 比例分成</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel show" id="panel-greenfixed">
+                    <div class="form-row"><div class="form-label required">固定价格</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数"><span class="form-text">元/MWh</span></div></div>
+                </div>
+                <div class="panel" id="panel-greenfloat">
+                    <div class="form-row"><div class="form-label required">联动年度占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                    <div class="form-row"><div class="form-label required">联动月度占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                    <div class="form-row"><div class="form-label required">联动月内占比</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" min="0" max="100" placeholder="整数"><span class="form-text">%</span></div></div>
+                    <div class="form-hint">市场联动价格=批发市场年度/月度/月内绿电交易均价，自动带出</div>
+                    <div class="form-row"><div class="form-label required">浮动价格 ΔP</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="≥0"><span class="form-text">元/MWh</span></div></div>
+                    <div class="form-hint">≤3%最近一次年度绿电交易均价且≥0</div>
+                </div>
+                <div class="panel" id="panel-greenshare">
+                    <div class="form-row"><div class="form-label required">分成参考价格</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="3位小数"><span class="form-text">元/MWh</span></div></div>
+                    <div class="form-hint">较年度绿电交易均价不宜超过+5%</div>
+                    <div class="form-row"><div class="form-label required">年度 占比/高于/低于</div><div class="form-control wide" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" placeholder="占比%"><input class="form-input" id="gUp1" type="number" placeholder="高于甲方%"><input class="form-input" id="gDown1" type="number" placeholder="低于甲方%"><span class="form-text">%</span></div></div>
+                    <div class="form-row"><div class="form-label required">月度 占比/高于/低于</div><div class="form-control wide" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" placeholder="占比%"><input class="form-input" id="gUp2" type="number" placeholder="高于甲方%"><input class="form-input" id="gDown2" type="number" placeholder="低于甲方%"><span class="form-text">%</span></div></div>
+                    <div class="form-row"><div class="form-label required">月内 占比/高于/低于</div><div class="form-control wide" style="display:flex;gap:8px;align-items:center;"><input class="form-input" type="number" placeholder="占比%"><input class="form-input" id="gUp3" type="number" placeholder="高于甲方%"><input class="form-input" id="gDown3" type="number" placeholder="低于甲方%"><span class="form-text">%</span></div></div>
+                    <div class="form-hint">年度/月度/月内分别对参考价分段后按占比加权；高于甲方(负价差分摊)≤50%，低于甲方(正价差分成)≥50%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 附件信息 -->
+        <div class="form-section">
+            <div class="form-section-title">附件信息</div>
+            <div class="form-row">
+                <div class="form-label">合同附件</div>
+                <div class="form-control">
+                    <div class="attach-box">
+                        <div style="font-size:24px;margin-bottom:8px;">📎</div>
+                        <div>添加文件 0/5</div>
+                        <div style="font-size:12px;margin-top:4px;">支持格式：pdf · 上传大小不能超过 10M</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="drawer-footer">
+        <button class="btn" onclick="closeDrawer('contract')">取消</button>
+        <button class="btn btn-primary" onclick="onSaveContract()">提交</button>
+    </div>
+</div>
+
+<!-- ========== 超限预警+法人确认弹框 ========== -->
+<div class="modal-overlay" id="warnOverlay"></div>
+<div class="modal" id="warnModal">
+    <div class="modal-header">
+        <div class="modal-title" style="color:#ad6800;">参数超限预警 · 需法定代表人再次确认</div>
+        <div class="modal-close" onclick="closeWarn()">✕</div>
+    </div>
+    <div class="modal-body">
+        <div style="font-size:13px;color:#666;margin-bottom:12px;">以下参数超过苏电注册公告 2025-164 号文不宜超过限值，系统已向法定代表人/授权委托人发送预警短信，请完成再次确认：</div>
+        <div id="warnList"></div>
+        <div class="form-row" style="margin-top:16px;"><div class="form-label required">法定代表人/授权委托人</div><div class="form-control"><input class="form-input" placeholder="请输入姓名"></div></div>
+        <div class="form-row"><div class="form-label required">授权验证码</div><div class="form-control" style="display:flex;gap:8px;align-items:center;"><input class="form-input" placeholder="短信验证码"><button class="btn btn-sm" type="button" onclick="showToast('验证码已发送','success')">发送验证码</button></div></div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="closeWarn()">取消</button>
+        <button class="btn btn-primary" onclick="confirmWarn()">确认并继续保存</button>
+    </div>
+</div>
+
+<!-- ========== 历史电价重算确认弹框 ========== -->
+<div class="modal-overlay" id="recalcOverlay"></div>
+<div class="modal" id="recalcModal">
+    <div class="modal-header">
+        <div class="modal-title">历史电价重算确认</div>
+        <div class="modal-close" onclick="closeRecalc()">✕</div>
+    </div>
+    <div class="modal-body">
+        <div style="margin-bottom:16px;font-size:13px;color:#666;">您正在保存江苏零售合同，请选择历史电价处理方式：</div>
+        <div class="modal-radio-item active" onclick="selectRecalc('no', this)">
+            <input type="radio" name="recalc" value="no" checked>
+            <div class="modal-radio-text">
+                <div class="modal-radio-title">不重算历史电价</div>
+                <div class="modal-radio-desc">次月起按新套餐计算，历史电价保持不变</div>
+            </div>
+        </div>
+        <div class="modal-radio-item" onclick="selectRecalc('yes', this)">
+            <input type="radio" name="recalc" value="yes">
+            <div class="modal-radio-text">
+                <div class="modal-radio-title">重算指定时间范围内电价</div>
+                <div class="modal-radio-desc">中台执行重算（仅近3月内），完成后按新套餐计算</div>
+            </div>
+        </div>
+        <div id="recalcTimeRange" style="display:none;margin-top:12px;padding:12px;background:#fafafa;border-radius:4px;">
+            <div style="font-size:12px;color:#666;margin-bottom:8px;">选择时间范围:</div>
+            <div class="quick-btns">
+                <button class="quick-btn" onclick="pickRange('month', this)">本月</button>
+                <button class="quick-btn" onclick="pickRange('last', this)">上月</button>
+                <button class="quick-btn active" onclick="pickRange('recent3', this)">近三月</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+                <input type="date" class="date-input" id="recalcStart" value="2026-05-01">
+                <span>~</span>
+                <input type="date" class="date-input" id="recalcEnd" value="2026-08-18">
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" onclick="closeRecalc()">取消</button>
+        <button class="btn btn-primary" onclick="confirmRecalc()">确认</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+function openDrawer(type) {
+    document.getElementById('drawerOverlay').classList.add('show');
+    document.getElementById(type + 'Drawer').classList.add('show');
+}
+function closeDrawer(type) {
+    document.getElementById(type + 'Drawer').classList.remove('show');
+    if(!document.querySelector('.drawer.show')) document.getElementById('drawerOverlay').classList.remove('show');
+}
+function closeAllDrawers() {
+    document.querySelectorAll('.drawer').forEach(function(d){ d.classList.remove('show'); });
+    document.getElementById('drawerOverlay').classList.remove('show');
+}
+function showToast(msg, type) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast show ' + (type || 'success');
+    setTimeout(function(){ toast.className = 'toast'; }, 3000);
+}
+function num(el) { return el && el.value !== '' ? parseFloat(el.value) : 0; }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function switchTable(type) {
+    document.getElementById('predictTable').style.display = type === 'predict' ? 'block' : 'none';
+    document.getElementById('actualTable').style.display = type === 'actual' ? 'block' : 'none';
+}
+function switchPkg(type) {
+    document.getElementById('panel-nontou').classList.toggle('show', type === 'nontou');
+    document.getElementById('panel-tou').classList.toggle('show', type === 'tou');
+}
+function toggleLeg(leg) {
+    var on = document.getElementById('leg' + cap(leg)).checked;
+    document.getElementById('leg' + cap(leg) + 'Body').style.display = on ? 'block' : 'none';
+    document.getElementById('leg' + cap(leg) + 'Box').classList.toggle('active', on);
+}
+function switchRefMode(mode) {
+    document.getElementById('refInputRow').style.display = mode === 'input' ? 'flex' : 'none';
+}
+function switchSecond(mode) {
+    document.getElementById('legFloatBox').style.display = mode === 'float' ? 'block' : 'none';
+    document.getElementById('legShareBox').style.display = mode === 'share' ? 'block' : 'none';
+}
+function toggleTou(leg) {
+    var on = document.getElementById('tou' + cap(leg)).checked;
+    document.getElementById('tou' + cap(leg) + 'Body').style.display = on ? 'block' : 'none';
+}
+function pickMonth(el) {
+    el.parentNode.querySelectorAll('.quick-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+}
+function toggleGreen() {
+    document.getElementById('greenPanel').style.display = document.getElementById('greenEnable').checked ? 'block' : 'none';
+}
+function switchGreenMode(mode) {
+    document.getElementById('panel-greenfixed').classList.toggle('show', mode === 'fixed');
+    document.getElementById('panel-greenfloat').classList.toggle('show', mode === 'float');
+    document.getElementById('panel-greenshare').classList.toggle('show', mode === 'share');
+}
+
+function onSaveContract() {
+    var warns = [];
+    var isNontou = document.querySelector('input[name="pkgType"]:checked').value === 'nontou';
+    if (isNontou) {
+        var sum = num(document.getElementById('kFixed'));
+        if (sum > 50) warns.push('K固定=' + document.getElementById('kFixed').value + '%，超过政策限值50%');
+        if (document.querySelector('input[name="secondLeg"]:checked').value === 'float') {
+            sum += num(document.getElementById('kFloatLeg'));
+            var ks = num(document.getElementById('kSpot'));
+            if (ks > 0 && (ks < 5 || ks > 15)) warns.push('现货实时联动电量比例=' + ks + '%，超出5%-15%区间');
+        } else {
+            sum += num(document.getElementById('kShareLeg'));
+            [['kUp1','中长期'],['kUp2','现货']].forEach(function(p) {
+                var v = num(document.getElementById(p[0]));
+                if (v > 50) warns.push(p[1] + '高于甲方占比(负价差分摊)=' + v + '%，超过50%');
+            });
+            [['kDown1','中长期'],['kDown2','现货']].forEach(function(p) {
+                var v = num(document.getElementById(p[0]));
+                if (v > 0 && v < 50) warns.push(p[1] + '低于甲方占比(正价差分成)=' + v + '%，低于50%');
+            });
+        }
+        if (sum !== 100) { showToast('固定+第二项电量占比必须=100%（当前' + sum + '%）', ''); return; }
+    }
+    if (!isNontou) {
+        var tsum = num(document.getElementById('touKFixed'));
+        if (tsum > 50) warns.push('分时K固定=' + document.getElementById('touKFixed').value + '%，超过政策限值50%');
+        tsum += num(document.getElementById('touKLink'));
+        if (tsum !== 100) { showToast('分时固定+浮动占比必须=100%（当前' + tsum + '%）', ''); return; }
+    }
+    var kf = num(document.getElementById('kFloatGlobal'));
+    if (kf > 5) warns.push('购电均价浮动比例k浮动=' + kf + '%，超过政策限值5%');
+    if (document.getElementById('greenEnable').checked && document.querySelector('input[name="greenMode"]:checked').value === 'share') {
+        ['gUp1','gUp2','gUp3'].forEach(function(id) {
+            var v = num(document.getElementById(id));
+            if (v > 50) warns.push('绿电分成高于甲方占比=' + v + '%，超过50%');
+        });
+        ['gDown1','gDown2','gDown3'].forEach(function(id) {
+            var v = num(document.getElementById(id));
+            if (v > 0 && v < 50) warns.push('绿电分成低于甲方占比=' + v + '%，低于50%');
+        });
+    }
+    if (warns.length) {
+        document.getElementById('warnList').innerHTML = warns.map(function(w){ return '<div class="warn-item">' + w + '</div>'; }).join('');
+        document.getElementById('warnOverlay').classList.add('show');
+        document.getElementById('warnModal').classList.add('show');
+    } else {
+        proceedSave();
+    }
+}
+function closeWarn() {
+    document.getElementById('warnOverlay').classList.remove('show');
+    document.getElementById('warnModal').classList.remove('show');
+}
+function confirmWarn() {
+    closeWarn();
+    showToast('法定代表人再次确认通过', 'success');
+    proceedSave();
+}
+function proceedSave() {
+    closeDrawer('contract');
+    setTimeout(function() {
+        document.getElementById('recalcOverlay').classList.add('show');
+        document.getElementById('recalcModal').classList.add('show');
+    }, 200);
+}
+function closeRecalc() {
+    document.getElementById('recalcOverlay').classList.remove('show');
+    document.getElementById('recalcModal').classList.remove('show');
+}
+function selectRecalc(choice, el) {
+    document.querySelectorAll('.modal-radio-item').forEach(function(r){ r.classList.remove('active'); });
+    el.classList.add('active');
+    document.querySelectorAll('input[name=recalc]').forEach(function(r){ r.checked = false; });
+    el.querySelector('input').checked = true;
+    document.getElementById('recalcTimeRange').style.display = (choice === 'yes') ? 'block' : 'none';
+}
+function pickRange(type, el) {
+    el.parentNode.querySelectorAll('.quick-btn').forEach(function(b){ b.classList.remove('active'); });
+    el.classList.add('active');
+    var start;
+    if (type === 'month') start = new Date(2026, 7, 1);
+    else if (type === 'last') start = new Date(2026, 6, 1);
+    else start = new Date(2026, 5, 1);
+    document.getElementById('recalcStart').value = start.toISOString().slice(0, 10);
+    document.getElementById('recalcEnd').value = '2026-08-18';
+}
+function confirmRecalc() {
+    var choice = document.querySelector('input[name=recalc]:checked').value;
+    closeRecalc();
+    if (choice === 'no') showToast('合同已保存，次月起按新套餐计算，历史电价不变', 'success');
+    else showToast('中台执行重算 ' + document.getElementById('recalcStart').value + ' ~ ' + document.getElementById('recalcEnd').value + '，完成后按新套餐计算', 'success');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{
+  "context": {
+    "month": "2026-08-01",
+    "assetId": "2094605881445646336",
+    "assetType": "thing",
+    "variableCode": "monthFloatFactorArray"
+  }
+}
+
+{
+  "context": {
+    "month": "2026-08-01",
+    "assetId": "2094605881445646336",
+    "assetType": "thing",
+    "variableCode": "monthPeriodArray"
+  }
+}
+
+{
+  "context": {
+    "month": "2026-02-01",
+    "variableCode": "monthDayArray"
+  }
+}
+
+{
+  "context": {
+    "code": "floatFactor",
+    "type": "",
+    "month": "2026-08-01",
+    "assetId": "2094605881445646336",
+    "variableCode": "floatFactor"
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

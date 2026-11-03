@@ -1,0 +1,557 @@
+#### 规则4分时 固定+浮动价格（分时TOU数组版）计算：
+'''
+P零售 = {midtermPriceArray=ScalarArrayOp(tou_k_midterm*marketMltPrice);
+        spotPriceArray=ScalarArrayOp(tou_k_spot*clearPriceRealTime);
+        initLinkagePriceArray=SigmaArray(midtermPriceArray+spotPriceArray);
+        transLinkagePriceArray=ScalarArrayOp(initLinkagePriceArray+tou_dp_float);
+        linkagePriceArray=ScalarArrayOp(tou_k_link*transLinkagePriceArray);
+        fixedPriceArray=ScalarArrayOp(tou_k_fixed*tou_p_fixed);
+        portfolioPrice=SigmaArray(fixedPriceArray+linkagePriceArray);
+        monthDayFlatPriceArray=PeriodPriceArray(portfolioPrice,monthPeriodArray,3,monthDayArray);
+        avgFlatWeightedPrice=WeightedAvg(actualEnergy_dayHoursFlat,monthDayFlatPriceArray);
+        adjustPortfolioPrice=AdjustPriceArray(portfolioPrice,monthPeriodArray,monthFloatFactorArray,avgFlatWeightedPrice);
+        capPrice=(1+cap_price_percent)*purchaseAvgPrice;
+        avgWeightedPrice=WeightedAvg(actualEnergy_monthHours,adjustPortfolioPrice);
+        MinPair(avgWeightedPrice,capPrice)}
+P绿电 = {if(greenElectricityAvgPrice<green_p_ref){annualGreenPrice=green_p_ref+green_down_year*(green_p_ref-greenElectricityAvgPrice);}
+        else{annualGreenPrice=green_p_ref+green_up_year*(greenElectricityAvgPrice-green_p_ref);}
+        if(greenElectricityMonthlyAvgPrice<green_p_ref){monthlyGreenPrice=green_p_ref+green_down_month*(green_p_ref-greenElectricityMonthlyAvgPrice);}
+        else{monthlyGreenPrice=green_p_ref+green_up_month*(greenElectricityMonthlyAvgPrice-green_p_ref);}
+        if(greenElectricityIntraMonthAvgPrice<green_p_ref){intramonthGreenPrice=green_p_ref+green_down_inmonth*(green_p_ref-greenElectricityIntraMonthAvgPrice);}
+        else{intramonthGreenPrice=green_p_ref+green_up_inmonth*(greenElectricityIntraMonthAvgPrice-green_p_ref);}
+        greenPortfolioPrice=green_k_year_share*annualGreenPrice+green_k_month_share*monthlyGreenPrice+green_k_inmonth_share*intramonthGreenPrice;
+        MinPair(greenPortfolioPrice,green_price_cap)}
+P绿电综合 = GreenElectric + GreenEnv
+P到户 = Purchase*floatFactor+outLineLossPrice+unitConveyPrice+sysOperateFeePrice+governmentAppendPrice+otherPrice
+'''
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+urllib3.disable_warnings(InsecureRequestWarning)
+if __name__ == "__main__":
+    import sys
+    import psycopg2
+    from api_utils import login_goodwe
+    from api_utils import fetch_variable
+    from decimal import Decimal, getcontext
+
+    # 设置全局精度
+    getcontext().prec = 15
+
+    # 环境变量
+    username = "18834175317"
+
+    # ============test============
+    base_url = "https://test.we.goodwe.com"
+    password = "Aa123456" # test
+    sql_host = '10.197.12.7'
+    sql_user = "sebu_test_01"
+    sql_pwd = "r%iGKeCsSFu4PYs5"
+    # ============uat============
+    # base_url = "https://uat.we.goodwe.com"
+    # password = "Duhuixia612." # uat
+    # sql_host = '10.197.13.7'
+    # sql_user = "postgres"
+    # sql_pwd = "Goodwe123small"
+
+    # 公共变量
+    asset_id = "2094605881445646336"
+    month = "2026-08-01"
+    startDt = month
+    endDt = month
+    ##查询公式的月度周期
+    start_date = "2026-08-01"
+    end_date = "2026-08-31"
+    # ===== 在程序启动时登录一次 =====
+    session = login_goodwe(
+        base_url=base_url,
+        account=username,
+        password=password
+    )
+
+    if session:
+        print("✅ Session 已就绪")
+        print(f"Authorization: {session.headers.get('Authorization')}")
+    else:
+        print("❌ 登录失败")
+
+    # ========== 数组算子工具 ==========
+    def scalar_array_mul(scalar, arr):
+        """ScalarArrayOp(标量*数组)：逐元素相乘"""
+        return [scalar * x for x in arr]
+
+    def scalar_array_add(scalar, arr):
+        """ScalarArrayOp(数组+标量)：标量广播逐元素相加"""
+        return [x + scalar for x in arr]
+
+    def sigma_array(a, b):
+        """SigmaArray(数组+数组)：两数组逐元素相加；长度不一致直接退出"""
+        if len(a) != len(b):
+            print(f"❌ SigmaArray 两数组长度不一致: {len(a)} vs {len(b)}，核心输入校验失败，退出")
+            sys.exit(1)
+        return [x + y for x, y in zip(a, b)]
+
+    def weighted_avg(weight_arr, value_arr):
+        """WeightedAvg(权重数组, 数值数组)：Σ(w*v)/Σw"""
+        if len(weight_arr) != len(value_arr):
+            print(f"⚠️ WeightedAvg 权重与数值长度不一致: {len(weight_arr)} vs {len(value_arr)}，按较短长度计算")
+        num = Decimal("0")
+        den = Decimal("0")
+        for w, v in zip(weight_arr, value_arr):
+            num += w * v
+            den += w
+        if den == 0:
+            print("⚠️ WeightedAvg 权重合计为 0，无法计算")
+            return None
+        return num / den
+
+    def period_price_array(portfolio_arr, period_arr, default_val, day_arr):
+        """PeriodPriceArray(portfolioPrice, monthPeriodArray, 3, monthDayArray)
+        按 monthPeriodArray 各时段天数、monthDayArray 各时段日历天数，
+        将对应位置的 portfolioPrice 值展开为 日历天数×24 的平段数组。"""
+        n = min(len(period_arr), len(day_arr), len(portfolio_arr))
+        if n < len(day_arr):
+            print(f"⚠️ period/day/portfolio 数量不匹配({len(period_arr)}/{len(day_arr)}/{len(portfolio_arr)})，按前 {n} 段计算")
+        out = []
+        for i in range(n):
+            days = int(day_arr[i])
+            val = portfolio_arr[i] if i < len(portfolio_arr) else default_val
+            for _ in range(days * 24):
+                out.append(val)
+        return out
+
+    def adjust_price_array(portfolio_arr, period_arr, float_arr, avg_flat):
+        """AdjustPriceArray(portfolioPrice, monthPeriodArray, monthFloatFactorArray, avgFlatWeightedPrice)
+        各时段组合价乘以对应浮动系数得到调整价数组。"""
+        if len(float_arr) != len(portfolio_arr):
+            print(f"⚠️ monthFloatFactorArray 与 portfolioPrice 长度不一致: {len(float_arr)} vs {len(portfolio_arr)}")
+        return [p * f for p, f in zip(portfolio_arr, float_arr)]
+
+    # ========== 参数配置 ==========
+    # ---- 标量系统级指标（与 aRealTime 获取方式相同）----
+    #      公式变量名 -> (接口 variableCode, dimension)，接口码定义见 e_price_template.price_variable_source_config
+    scalar_indicator_code_map = {
+        "purchaseAvgPrice": ("aAvgRealTime", "month"),
+        "GreenEnv": ("greenEnvRealTime", "month"),
+        "greenElectricityAvgPrice": ("greenPowerAnnualAvgRealTime", "year"),
+        "greenElectricityMonthlyAvgPrice": ("greenPowerMonthlyAvgRealTime", "month"),
+        "greenElectricityIntraMonthAvgPrice": ("greenPowerIntraMonthAvgRealTime", "month"),
+    }
+    sys_values = {}
+    for name, (code, dimension) in scalar_indicator_code_map.items():
+        context = {
+            "variableCode": code,
+            "endDt": "2026-08-01",
+            "startDt": "2026-08-01",
+            "tag": code,
+            "dimension": dimension,
+            "provinceId": "320000",
+            "code": "m",
+            "index": "0",
+            "tagCode": code
+        }
+        result = fetch_variable(session, context, base_url)
+        if result.get("code") == "00000" and isinstance(result.get("data"), dict) and result["data"].get("value") is not None:
+            sys_values[name] = Decimal(str(result["data"]["value"]))
+            print(f"✅ 获取到{name}({code}, dim={dimension})值: {sys_values[name]}")
+        else:
+            print(f"❌ 获取{name}({code}, dim={dimension})失败:", result.get("description"), result.get("data"))
+            sys.exit(1)
+
+    # ---- 数组系统级指标：dimension=dayHours ----
+    def parse_raw_value(raw):
+        """接口返回值兼容 list 或 逗号分隔字符串，统一转为 Decimal 数组；空值返回 None"""
+        if raw is None:
+            return None
+        if isinstance(raw, (list, tuple)):
+            items = list(raw)
+        else:
+            raw_str = str(raw).strip()
+            if not raw_str:
+                return None
+            items = raw_str.split(",")
+        if not items:
+            return None
+        return [Decimal(str(x)) for x in items]
+
+    day_hours_codes = ["actualEnergy_dayHoursFlat"]
+    arr_day = {}
+    for code in day_hours_codes:
+        context = {
+            "variableCode": code,
+            "endDt": "2026-08-01",
+            "startDt": "2026-08-01",
+            "tag": code,
+            "dimension": "dayHours",
+            "provinceId": "320000",
+            "code": "m",
+            "index": "0",
+            "tagCode": code
+        }
+        result = fetch_variable(session, context, base_url)
+        if result.get("code") == "00000":
+            arr_day[code] = parse_raw_value(result["data"]["value"])
+            if arr_day[code] is None:
+                print(f"❌ {code} 返回值为空，退出")
+                sys.exit(1)
+            print(f"✅ 获取到{code}数组，长度 {len(arr_day[code])}，首值 {arr_day[code][0]}")
+        else:
+            print(f"❌ 获取{code}失败:", result.get("description"))
+            sys.exit(1)
+
+    # ---- 数组用户级参数：与 actualEnergy_dayHoursFlat 同一获取方式，仅 context 入参不同 ----
+    def fetch_array_param(context):
+        code = context["variableCode"]
+        result = fetch_variable(session, context, base_url)
+        if result.get("code") != "00000":
+            print(f"❌ 获取{code}失败:", result.get("description"))
+            sys.exit(1)
+        parsed = parse_raw_value(result["data"]["value"])
+        if parsed is None:
+            print(f"❌ {code} 返回值为空，退出")
+            sys.exit(1)
+        arr_day[code] = parsed
+        print(f"✅ 获取到{code}数组: {parsed}")
+
+    # monthPeriodArray
+    fetch_array_param({
+        "month": start_date,
+        "assetId": asset_id,
+        "assetType": "thing",
+        "variableCode": "monthPeriodArray"
+    })
+    # monthFloatFactorArray
+    fetch_array_param({
+        "month": start_date,
+        "assetId": asset_id,
+        "assetType": "thing",
+        "variableCode": "monthFloatFactorArray"
+    })
+    # monthDayArray
+    fetch_array_param({
+        "month": start_date,
+        "variableCode": "monthDayArray"
+    })
+
+    # ---- 数组系统级指标：dimension=monthHours ----
+    month_hours_codes = ["marketMltPrice", "clearPriceRealTime", "actualEnergy_monthHours"]
+    arr_month = {}
+    for code in month_hours_codes:
+        context = {
+            "variableCode": code,
+            "endDt": "2026-08-01",
+            "startDt": "2026-08-01",
+            "tag": code,
+            "dimension": "monthHours",
+            "provinceId": "320000",
+            "code": "m",
+            "index": "0",
+            "tagCode": code
+        }
+        result = fetch_variable(session, context, base_url)
+        if result.get("code") == "00000":
+            arr_month[code] = parse_raw_value(result["data"]["value"])
+            if arr_month[code] is None:
+                print(f"❌ {code} 返回值为空，退出")
+                sys.exit(1)
+            print(f"✅ 获取到{code}数组，长度 {len(arr_month[code])}，首值 {arr_month[code][0]}")
+        else:
+            print(f"❌ 获取{code}失败:", result.get("description"))
+            sys.exit(1)
+
+    ##登录数据库
+    conn_params = {
+        "dbname": "secp",
+        "port": 5432,
+        "user": sql_user,
+        "password": sql_pwd,
+        "host": sql_host
+    }
+
+    # 建立连接
+    conn = psycopg2.connect(**conn_params)
+    print("✅ PostgreSQL连接成功!")
+    # 创建游标
+    cursor = conn.cursor()
+    # 零售参数取自 category_code='Retail'，绿电参数取自 category_code='GreenElectric'
+    cursor.execute("""
+            SELECT category_code, manual_inputs_variables
+            FROM deal_covenant.custom_rule_price_info AS crpi
+            WHERE custom_rule_id IN (
+                SELECT id FROM deal_covenant.custom_rule_info
+                WHERE asset_id = %s
+                AND start_date >= %s
+                AND end_date <= %s
+            )
+            AND category_code IN ('Retail', 'GreenElectric')
+        """, (asset_id, start_date, end_date))
+    rows = cursor.fetchall()
+
+    # 按 category_code 归集各品类的 manual_inputs_variables
+    raw_vars = {}
+    for category_code, manual_inputs in rows:
+        if not manual_inputs:
+            print(f"⚠️ {category_code} 的 manual_inputs_variables 为空，跳过")
+            continue
+        if category_code == 'GreenElectric':
+            print(f"✅ 绿电参数来自 category_code={category_code}")
+        raw_vars.update(manual_inputs)
+
+    if not raw_vars:
+        raise ValueError(
+            f"未查询到 Retail / GreenElectric 的 manual_inputs_variables 数据: "
+            f"asset_id={asset_id}, start_date={start_date}, end_date={end_date}"
+        )
+
+    # 获取用户级参数：标量
+    # tou_*/cap_price_percent 来自 Retail；green_* 来自 GreenElectric
+    user_vars = [
+        "tou_k_midterm", "tou_k_spot", "tou_dp_float",
+        "tou_k_fixed", "tou_p_fixed", "tou_k_link",
+        "cap_price_percent",
+        "green_p_ref", "green_down_year", "green_up_year",
+        "green_down_month", "green_up_month",
+        "green_down_inmonth", "green_up_inmonth",
+        "green_k_year_share", "green_k_month_share", "green_k_inmonth_share",
+        "green_price_cap",
+    ]
+    missing = [code for code in user_vars if code not in raw_vars]
+    if missing:
+        raise KeyError(f"manual_inputs_variables 中缺少以下参数: {missing}")
+    variables = {code: Decimal(str(raw_vars[code])) for code in user_vars}
+    for code, value in variables.items():
+        print(f"{code}: {value}")
+    # 关闭连接
+    cursor.close()
+    conn.close()
+
+    # ========== 零售套餐公式计算（分时数组） ==========
+    # midtermPriceArray = tou_k_midterm * marketMltPrice
+    midterm_price_arr = scalar_array_mul(variables["tou_k_midterm"], arr_month["marketMltPrice"])
+    # spotPriceArray = tou_k_spot * clearPriceRealTime
+    spot_price_arr = scalar_array_mul(variables["tou_k_spot"], arr_month["clearPriceRealTime"])
+    # initLinkagePriceArray = midtermPriceArray + spotPriceArray（逐元素）
+    init_linkage_arr = sigma_array(midterm_price_arr, spot_price_arr)
+    # transLinkagePriceArray = initLinkagePriceArray + tou_dp_float
+    trans_linkage_arr = scalar_array_add(variables["tou_dp_float"], init_linkage_arr)
+    # linkagePriceArray = tou_k_link * transLinkagePriceArray
+    linkage_arr = scalar_array_mul(variables["tou_k_link"], trans_linkage_arr)
+    # fixedPriceArray = tou_k_fixed * tou_p_fixed（标量）
+    fixed_price = variables["tou_k_fixed"] * variables["tou_p_fixed"]
+    # portfolioPrice = fixedPriceArray + linkagePriceArray（标量广播逐元素）
+    portfolio_arr = sigma_array(
+        [fixed_price] * len(linkage_arr), linkage_arr
+    )
+
+    # monthDayFlatPriceArray = PeriodPriceArray(portfolioPrice, monthPeriodArray, 3, monthDayArray)
+    month_day_flat_arr = period_price_array(portfolio_arr, arr_day["monthPeriodArray"], Decimal("3"), arr_day["monthDayArray"])
+    # avgFlatWeightedPrice = WeightedAvg(actualEnergy_dayHoursFlat, monthDayFlatPriceArray)
+    avg_flat_weighted_price = weighted_avg(arr_day["actualEnergy_dayHoursFlat"], month_day_flat_arr)
+    print(f"平段加权均价 (avgFlatWeightedPrice): {avg_flat_weighted_price}")
+
+    # adjustPortfolioPrice = AdjustPriceArray(portfolioPrice, monthPeriodArray, monthFloatFactorArray, avgFlatWeightedPrice)
+    adjust_portfolio_arr = adjust_price_array(portfolio_arr, arr_day["monthPeriodArray"], arr_day["monthFloatFactorArray"], avg_flat_weighted_price)
+    # capPrice = (1+cap_price_percent)*purchaseAvgPrice
+    cap_price = (Decimal("1") + variables["cap_price_percent"]) * sys_values["purchaseAvgPrice"]
+    # avgWeightedPrice = WeightedAvg(actualEnergy_monthHours, adjustPortfolioPrice)
+    avg_weighted_price = weighted_avg(arr_month["actualEnergy_monthHours"], adjust_portfolio_arr)
+    if avg_weighted_price is None:
+        print("❌ avgWeightedPrice 无法计算（权重合计为 0 或数组为空），退出")
+        sys.exit(1)
+
+    # P零售 = MinPair(avgWeightedPrice, capPrice)
+    final_price = min(avg_weighted_price, cap_price)
+
+    # ========== 输出结果 ==========
+    print(f"组合价数组 (portfolioPrice): {portfolio_arr}")
+    print(f"调整后组合价数组 (adjustPortfolioPrice): {adjust_portfolio_arr}")
+    print(f"加权均价 (avgWeightedPrice): {avg_weighted_price}")
+    print(f"上限价格 (capPrice): {cap_price}")
+    print(f"-----零售电价--------")
+    print(f"最终交易价格(零售电价实际): {final_price}")
+
+    # ========== 绿电电价计算 ==========
+    green_p_ref = variables["green_p_ref"]
+    ga = sys_values["greenElectricityAvgPrice"]
+    gm = sys_values["greenElectricityMonthlyAvgPrice"]
+    gi = sys_values["greenElectricityIntraMonthAvgPrice"]
+
+    if ga < green_p_ref:
+        annual_green_price = green_p_ref + variables["green_down_year"] * (green_p_ref - ga)
+    else:
+        annual_green_price = green_p_ref + variables["green_up_year"] * (ga - green_p_ref)
+
+    if gm < green_p_ref:
+        monthly_green_price = green_p_ref + variables["green_down_month"] * (green_p_ref - gm)
+    else:
+        monthly_green_price = green_p_ref + variables["green_up_month"] * (gm - green_p_ref)
+
+    if gi < green_p_ref:
+        intramonth_green_price = green_p_ref + variables["green_down_inmonth"] * (green_p_ref - gi)
+    else:
+        intramonth_green_price = green_p_ref + variables["green_up_inmonth"] * (gi - green_p_ref)
+
+    green_portfolio_price = (
+        variables["green_k_year_share"] * annual_green_price
+        + variables["green_k_month_share"] * monthly_green_price
+        + variables["green_k_inmonth_share"] * intramonth_green_price
+    )
+    GreenElectric = min(green_portfolio_price, variables["green_price_cap"])
+    print(f"-----绿电电价--------")
+    print(f"年度绿电价 (annualGreenPrice): {annual_green_price}")
+    print(f"月度绿电价 (monthlyGreenPrice): {monthly_green_price}")
+    print(f"月内绿电价 (intramonthGreenPrice): {intramonth_green_price}")
+    print(f"绿电组合价 (greenPortfolioPrice): {green_portfolio_price}")
+    print(f"绿电价格上限 (green_price_cap): {variables['green_price_cap']}")
+    print(f"绿电电价 (GreenElectric): {GreenElectric}")
+    print(f"绿电环境电价 (GreenEnv): {sys_values['GreenEnv']}")
+
+    # ========== 绿电综合价计算 ==========
+    green_total_price = GreenElectric + sys_values["GreenEnv"]
+    print(f"-----绿电综合电价--------")
+    print(f"绿电综合电价 (P绿电综合): {green_total_price}")
+
+    # 计算购电电价
+    PurchaseAlg = final_price
+    print(f"-----购电电价--------")
+    print(f"购电电价实际: {PurchaseAlg}")
+
+    # ========== 获取各时段浮动系数 floatFactor ==========
+    # 尖:critical 峰:peak 平:flat 谷:valley 深谷:deep
+    # electricity_type：0-一般工商业/1-大型工业 voltage_level_type：0-单一制/1-两部制 voltage_level_sub_type：1-100千伏以上/2-100千伏以下
+    periods = {
+        "critical": "尖峰",
+        "peak": "峰",
+        "flat": "平",
+        "valley": "谷",
+        "deep": "深谷",
+    }
+    float_factor = {}
+    conn = psycopg2.connect(**conn_params)
+    print("✅ PostgreSQL连接成功!")
+    cursor = conn.cursor()
+    for code, label in periods.items():
+        cursor.execute("""
+                SELECT pvv.*
+                FROM e_price_template.price_variable_value AS pvv
+                WHERE province_code = %s
+                    AND month = %s
+                    AND electricity_type = '0'
+                    AND voltage_level_type = '1'
+                    AND voltage_value_code = '14'
+                    AND variable_code = %s
+            """, ("320000", month, code))
+        rows = cursor.fetchall()
+        if not rows:
+            print(f"⚠️ {label}段({code}): 未查到 floatFactor")
+            float_factor[code] = None
+        else:
+            col_names = [d[0] for d in cursor.description]
+            value = dict(zip(col_names, rows[0]))["variable_value"]
+            if value is None:
+                print(f"⚠️ {label}段({code}): floatFactor 值为空(NULL)，跳过计算")
+                float_factor[code] = None
+            else:
+                float_factor[code] = Decimal(str(value))
+                print(f"{label}段({code}) floatFactor: {float_factor[code]}")
+    cursor.close()
+    conn.close()
+
+    # ========== 获取电价模板五大项价格 ==========
+    # 建立连接
+    conn = psycopg2.connect(**conn_params)
+    print("✅ PostgreSQL连接成功!")
+    # 创建游标
+    cursor = conn.cursor()
+    cursor.execute("""
+            SELECT ptspr.price
+            FROM covenant.price_template_stage_price_rel ptspr
+            JOIN covenant.price_template_asset_rel ptar
+                ON ptspr.price_template_id = ptar.price_template_id
+            WHERE ptar.asset_id = %s
+                AND ptar.price_sub_category_code = 'StateGridAgentCost'
+                AND ptar.start_date = %s
+                AND ptspr.price_type = 'OutLineLoss'
+        """, (asset_id, start_date))
+    rows = cursor.fetchall()
+    outLineLossPrice = Decimal(str(rows[0][0]))
+    print(f"outLineLossPrice: {outLineLossPrice}")
+    cursor.execute("""
+                SELECT ptspr.price
+                FROM covenant.price_template_stage_price_rel ptspr
+                JOIN covenant.price_template_asset_rel ptar
+                    ON ptspr.price_template_id = ptar.price_template_id
+                WHERE ptar.asset_id = %s
+                    AND ptar.price_sub_category_code = 'StateGridAgentCost'
+                    AND ptar.start_date = %s
+                    AND ptspr.price_type = 'UnitConvey'
+            """, (asset_id, start_date))
+    rows = cursor.fetchall()
+    unitConveyPrice = Decimal(str(rows[0][0]))
+    print(f"unitConveyPrice: {unitConveyPrice}")
+
+    cursor.execute("""
+                SELECT ptspr.price
+                FROM covenant.price_template_stage_price_rel ptspr
+                JOIN covenant.price_template_asset_rel ptar
+                    ON ptspr.price_template_id = ptar.price_template_id
+                WHERE ptar.asset_id = %s
+                    AND ptar.price_sub_category_code = 'StateGridAgentCost'
+                    AND ptar.start_date = %s
+                    AND ptspr.price_type = 'SysOperateFee'
+            """, (asset_id, start_date))
+    rows = cursor.fetchall()
+    sysOperateFeePrice = Decimal(str(rows[0][0]))
+    print(f"sysOperateFeePrice: {sysOperateFeePrice}")
+
+    cursor.execute("""
+                SELECT ptspr.price
+                FROM covenant.price_template_stage_price_rel ptspr
+                JOIN covenant.price_template_asset_rel ptar
+                    ON ptspr.price_template_id = ptar.price_template_id
+                WHERE ptar.asset_id = %s
+                    AND ptar.price_sub_category_code = 'StateGridAgentCost'
+                    AND ptar.start_date = %s
+                    AND ptspr.price_type = 'GovernmentAppend'
+            """, (asset_id, start_date))
+    rows = cursor.fetchall()
+    governmentAppendPrice = Decimal(str(rows[0][0]))
+    print(f"governmentAppendPrice: {governmentAppendPrice}")
+
+    cursor.execute("""
+                SELECT ptspr.price
+                FROM covenant.price_template_stage_price_rel ptspr
+                JOIN covenant.price_template_asset_rel ptar
+                    ON ptspr.price_template_id = ptar.price_template_id
+                WHERE ptar.asset_id = %s
+                    AND ptar.price_sub_category_code = 'StateGridAgentCost'
+                    AND ptar.start_date = %s
+                    AND ptspr.price_type = 'Other'
+            """, (asset_id, start_date))
+    rows = cursor.fetchall()
+    otherPrice = Decimal(str(rows[0][0]))
+    print(f"otherPrice: {otherPrice}")
+    # 关闭连接
+    cursor.close()
+    conn.close()
+
+    # 电价模板五大项合计
+    five_items = (
+            unitConveyPrice
+            + outLineLossPrice
+            + sysOperateFeePrice
+            + governmentAppendPrice
+            + otherPrice
+    )
+    print(f"电价模板五大项合计电价: {five_items}")
+
+    # ========== 计算到户电价 ==========
+    # P到户 = Purchase * floatFactor + outLineLossPrice + unitConveyPrice
+    #        + sysOperateFeePrice + governmentAppendPrice + otherPrice
+    print(f"-----到户电价--------")
+    print("\n📊 到户电价预测:")
+    for code, label in periods.items():
+        if float_factor[code] is None:
+            print(f"  {label}段: ⚠️ 无 floatFactor 数据，跳过计算")
+            continue
+        reach_price = PurchaseAlg * float_factor[code] + five_items
+        print(f"  {label}段({code}): {reach_price}")
